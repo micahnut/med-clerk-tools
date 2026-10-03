@@ -1,0 +1,41 @@
+.field select{width:100%;border:1px solid #e4e9e4;border-radius:5px;background:#fcfdfb;color:#354239;padding:8px 9px;font-size:10px;line-height:1.5;outline:none;min-width:0;transition:border-color .15s,box-shadow .15s}
+.field select:focus{border-color:#82ac91;box-shadow:0 0 0 2px #e9f2eb}
+.toggle-row{display:flex;align-items:flex-end;gap:18px;margin-top:11px;flex-wrap:wrap}
+.toggle{min-height:34px;display:inline-flex;align-items:center;gap:8px;font-size:10px;color:#526158;cursor:pointer}
+.toggle input{position:absolute;opacity:0}
+.toggle-box{width:16px;height:16px;border:1px solid #d8dfd9;border-radius:4px;background:#fff;display:grid;place-items:center}
+.toggle input:checked+.toggle-box{background:#2d7053;border-color:#2d7053}
+.toggle input:checked+.toggle-box:after{content:'✓';font-size:10px;color:white}
+.toggle input:focus-visible+.toggle-box{outline:2px solid #82ac91;outline-offset:2px}
+.family-grid{border:1px solid #e9ede9;border-radius:6px;overflow:hidden;margin-bottom:12px}
+.family-row{min-height:42px;display:grid;grid-template-columns:minmax(115px,1fr) minmax(150px,1fr);align-items:center;gap:12px;padding:5px 10px;border-bottom:1px solid #eff2ef}
+.family-row:last-child{border-bottom:0}
+.family-row>span{font-size:10px;color:#536158}
+.family-row .field>span{display:none}
+.family-row .field select{padding:6px 8px}
+.repeat-list{display:grid;gap:10px}
+.repeat-heading{display:grid;gap:3px;margin:14px 0 8px;color:#43544a;font-size:10px;font-weight:600}
+.repeat-heading small{color:#89958c;font-size:9px;font-weight:400}
+.repeat-heading.spaced{margin-top:20px}
+.repeat-card{background:#fbfcfa;border:1px solid #e8ede8;border-radius:7px;padding:11px}
+.repeat-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.repeat-head>strong{font:600 10px 'DM Mono';color:#447252;letter-spacing:.04em}
+.repeat-actions{display:flex;align-items:center;gap:5px}
+.repeat-actions button{min-width:25px;height:24px;border:1px solid #e2e8e2;border-radius:4px;background:#fff;color:#627369;font-size:11px}
+.repeat-actions button:disabled{opacity:.35;cursor:default}
+.repeat-actions button.remove-row{padding:0 7px;font-size:9px;color:#a16b67}
+.add-row{margin-top:10px;border:1px solid #dce8df;border-radius:5px;background:#f2f7f3;color:#39734f;padding:8px 10px;font-size:10px;font-weight:600}
+.add-row:hover{background:#eaf3ec}
+.check-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px 12px;border:1px solid #e9ede9;border-radius:6px;padding:7px 10px;background:#fff}
+.check-option{min-height:28px;font-size:10px}
+.family-checkbox-grid{border:1px solid #e9ede9;border-radius:6px;overflow:hidden;margin-top:10px}
+.family-checkbox-row{display:grid;grid-template-columns:minmax(130px,1fr) minmax(95px,.6fr) minmax(95px,.6fr);align-items:center;gap:12px;padding:5px 11px;border-bottom:1px solid #eff2ef;min-height:39px}
+.family-checkbox-row:last-child{border-bottom:0}
+.family-checkbox-row>strong{font-size:10px;font-weight:500;color:#536158}
+.family-checkbox-row .toggle{font-size:9px}
+.exam-grid{display:grid;gap:10px}
+.exam-card{border:1px solid #e8ede8;border-radius:6px;padding:9px;background:#fbfcfa}
+.exam-card h3{margin:0 0 7px;font-size:10px;font-weight:600;color:#526158}
+.exam-card .check-grid{grid-template-columns:repeat(3,minmax(0,1fr));padding:4px 7px}
+@media(max-width:600px){.check-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.exam-card .check-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.family-checkbox-row{grid-template-columns:minmax(105px,1fr) minmax(80px,.6fr) minmax(80px,.6fr);gap:6px}}
+@media(max-width:440px){.family-row{grid-template-columns:1fr minmax(120px,1fr);gap:7px;padding-left:8px;padding-right:8px}.family-row>span{font-size:9px}}
