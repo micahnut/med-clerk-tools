@@ -301,7 +301,7 @@ export default function App() {
   }
 
   return <div className="app">
-    <header className="topbar"><a className="brand" href="#"><span className="brand-mark">+</span><span>rounds<span className="brand-dot">.</span></span></a><span className="product-label">MESSAGE COMPOSER <i/></span></header>
+    <header className="topbar"><a className="brand" href="#"><span className="brand-mark" aria-hidden="true"/><span>med tools</span></a><span className="product-label">MESSAGE COMPOSER <i/></span></header>
     <main className="page">
       <nav className="tabs" aria-label="Specialty"><button className={tab==='ob'?'active':''} onClick={()=>{setTab('ob');setCopied(false)}}>OB-GYN <span>01</span></button><button className={tab==='pedia'?'active':''} onClick={()=>{setTab('pedia');setCopied(false)}}>PEDIA <span>02</span></button><button className={tab==='ent'?'active':''} onClick={()=>{setTab('ent');setCopied(false)}}>ENT <span>03</span></button></nav>
       <div className="workspace">
@@ -343,7 +343,6 @@ export default function App() {
         </div>
         <aside className="preview-column"><div className="preview-sticky"><div className="preview-heading"><div><span className="form-index">LIVE PREVIEW</span><h2>Ready to send</h2></div><span className="live-dot">LIVE</span></div><div className="preview-paper"><div className="paper-top"><span>MESSAGE PREVIEW</span><span>PLAIN TEXT</span></div><textarea className="preview-output" readOnly value={output} aria-label="Generated message preview"/></div><button className="copy-button" onClick={copyOutput}><span>{copied?'✓':'▣'}</span>{copied?'Copied':'Copy message'}<kbd>{copied?'READY':'⌘ C'}</kbd></button><p className="preview-hint">Review the message before sending. The app does not save or transmit form entries.</p></div></aside>
       </div>
-      <footer className="page-foot"><span>ROUNDS<span className="brand-dot">.</span> MESSAGE COMPOSER</span><span>Draft locally · Copy when ready</span></footer>
     </main>
   </div>;
 }
