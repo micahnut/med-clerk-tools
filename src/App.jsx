@@ -68,7 +68,7 @@ function buildEnt(data, procedureEvents=[], procedureSelections=[]) {
 
 function uppercaseOutputLabels(text) {
   const fixedStarts=['Good day, Doctors!','We have a new blotter patient in the ER:','Respectfully sending to you the details of the mother at LRDR Bed #','Respectfully informing you of the new blotter patient to ER-ENT:','Hx and PE to follow.','Thank you, doctors!','Thank you, Doctors!'];
-  const fixedLines=new Set(['PD','GENERAL DATA','— OBSTETRICAL HISTORY DETAILS —','— PRENATAL VISIT HISTORY —','— OB HISTORY —','— MENSTRUAL HISTORY —','— SEXUAL HISTORY —','Previous Hospitalizations or Surgeries','Current Medications']);
+  const fixedLines=new Set(['PD','GENERAL DATA','— OB HISTORY —','— MENSTRUAL HISTORY —','— SEXUAL HISTORY —','Previous Hospitalizations or Surgeries','Current Medications']);
   const labels=new Set(["Name",'Age& Sex','Address','Nationality','Religion','Cellphone#','CC','Chief Complaint','HPI','Assessment','PMH','PSH','Family History','PE','General Survey',"Mother's name",'Civil Status','Age','OB','Pedia',"Baby's Gender",'OB score','LMP','AOG by LMP','AOG by UTZ','EDD','FH','EFW','First PNC','Mat BT','Pat BT','HbsAg','HIV','Syphilis','Papsmear','CAS','GBS','OGTT','Allergies','Prenatal vitamins/meds','Maternal Illness/Complications','Hypertension','Diabetes','Asthma','Pertinent Prenatal Hx','Latest Ultrasound','OB Hx','Past Medical History','Previous Hospitalizations or Surgeries','Vaccines','Family Medical Hx','Personal/Social History','IE','FHT','Plan','M','I','D','A','C','P','S','OBS','Smoker','Alcoholic beverage drinker','FOOD AND DRUG ALLERGIES','VITAL SIGNS','CURRENT MEDICATIONS','GUT','IE SUMMARY','BP','HR','RR','TEMP','PPW','WT','HT','HEENT','Chest / lungs','Cardiovascular','Abdomen','GU / IE','Skin / extremities','Eyes','Head','Ears','Nose','Mouth','Throat/Neck']);
   return text.split('\n').map(line=>{
     if(fixedLines.has(line))return line.toUpperCase();
@@ -140,8 +140,8 @@ function buildOb(data, obstetricHistory, prenatalVisits, procedureEvents, proced
   const tpalValues = [data.termCount,data.pretermCount,data.abortionCount,data.liveBirthCount];
   const obsSummary = gravParity ? `G${clean(data.gravidaCount)||'0'}P${clean(data.parityCount)||'0'}${tpalValues.some(clean)?` (${tpalValues.map(value=>clean(value)||'0').join('')})`:''}` : data.obs;
   parts.push(titled('OB HISTORY', [['OBS',obsSummary],['LMP',formatDate(data.lmp)],['PMP',formatDate(data.pmp)],['EDD',formatDate(data.edd)]]));
-  parts.push(`— OBSTETRICAL HISTORY DETAILS —\n${formatPregnancyRows(obstetricHistory)}`);
-  parts.push(`— PRENATAL VISIT HISTORY —\n${formatPrenatalRows(prenatalVisits)}`);
+  parts.push(`Obstetrical History\n${formatPregnancyRows(obstetricHistory)}`);
+  parts.push(`Prenatal History\n${formatPrenatalRows(prenatalVisits)}`);
   const pmh = Array.isArray(data.pmhSelections) ? data.pmhSelections : [];
   const pmhOutput = pmh.includes('None')?'None':pmh.join(', ')||'Not specified';
   parts.push(`Past Medical History:\n${pmhOutput}`);
