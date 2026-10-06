@@ -17,6 +17,29 @@
 .repeat-heading{display:grid;gap:3px;margin:14px 0 8px;color:#43544a;font-size:10px;font-weight:600}
 .repeat-heading small{color:#89958c;font-size:9px;font-weight:400}
 .repeat-heading.spaced{margin-top:20px}
+.score-summary{display:block;margin-top:8px;color:#718077;font-size:9px}
+.editable-log{border:1px solid #dfe6ed;border-radius:7px;overflow:hidden;background:#fff}
+.editable-log-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#f7f9fc;border-bottom:1px solid #dfe6ed}
+.editable-log-header h3{margin:0;color:#435268;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.editable-log-header p{margin:4px 0 0;color:#839087;font-size:9px}
+.editable-log-header>button{flex:none;border:1px solid #dfe6ed;border-radius:5px;background:#fff;color:#35465a;padding:7px 10px;font-size:10px;font-weight:600}
+.editable-log-scroll{overflow-x:auto;overscroll-behavior-inline:contain}
+.editable-log table{width:100%;min-width:930px;border-collapse:collapse;font-size:10px}
+.editable-log-events table{min-width:620px}
+.editable-log-prenatal table{min-width:720px}
+.editable-log th,.editable-log td{padding:6px;border-right:1px solid #e5ebf1;border-bottom:1px solid #e5ebf1;text-align:left;vertical-align:middle}
+.editable-log thead th{background:#f0f4f9;color:#526177;font-size:8px;font-weight:700;text-transform:uppercase;white-space:nowrap}
+.editable-log tbody th{width:36px;color:#36485d;font-weight:600;background:#fbfcfd}
+.editable-log td input,.editable-log td select,.editable-log td textarea{width:100%;min-width:76px;border:1px solid #e4e9e4;border-radius:4px;background:#fcfdfb;color:#354239;padding:6px 7px;font:inherit;outline:none}
+.editable-log td input:focus,.editable-log td select:focus,.editable-log td textarea:focus{border-color:#82ac91;box-shadow:0 0 0 2px #e9f2eb}
+.editable-log td textarea{display:block;min-height:44px;resize:vertical}
+.editable-log td input::placeholder{color:#a2ada5}
+.editable-log td.editable-log-action{width:46px;text-align:center}
+.editable-log-action button{display:inline-grid;width:25px;height:25px;place-items:center;border:0;border-radius:4px;background:transparent;color:#bb6c6c}
+.editable-log-action button:hover{background:#fff1f1}
+.editable-log-action svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.editable-log tbody tr:last-child th,.editable-log tbody tr:last-child td{border-bottom:0}
+.editable-log tr>*:last-child{border-right:0}
 .repeat-card{background:#fbfcfa;border:1px solid #e8ede8;border-radius:7px;padding:11px}
 .repeat-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .repeat-head>strong{font:600 10px 'DM Mono';color:#447252;letter-spacing:.04em}
@@ -24,6 +47,7 @@
 .repeat-actions button{min-width:25px;height:24px;border:1px solid #e2e8e2;border-radius:4px;background:#fff;color:#627369;font-size:11px}
 .repeat-actions button:disabled{opacity:.35;cursor:default}
 .repeat-actions button.remove-row{padding:0 7px;font-size:9px;color:#a16b67}
+.repeat-head>button.remove-row{min-width:25px;height:24px;padding:0 7px;border:1px solid #e2e8e2;border-radius:4px;background:#fff;color:#a16b67;font-size:9px}
 .add-row{margin-top:10px;border:1px solid #dce8df;border-radius:5px;background:#f2f7f3;color:#39734f;padding:8px 10px;font-size:10px;font-weight:600}
 .add-row:hover{background:#eaf3ec}
 .check-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px 12px;border:1px solid #e9ede9;border-radius:6px;padding:7px 10px;background:#fff}
