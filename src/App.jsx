@@ -1,4 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+const DRAFT_STORAGE_KEY = 'med-tools-form-draft-v1';
+
+function readLocalDraft() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(DRAFT_STORAGE_KEY));
+    if (!saved || typeof saved !== 'object') return {};
+    return saved;
+  } catch {
+    return {};
+  }
+}
 
 const obTextFields = [
   ['name','NAME'], ['age','AGE'], ['mrn','MRN'], ['obScore','OB SCORE'],
@@ -169,6 +181,12 @@ let nextRowId = 0;
 function makePregnancy() { return {id:++nextRowId,year:'',gestationalAge:'',outcome:'',mode:'',sex:'',weight:'',institution:'',complications:''}; }
 function makePrenatalVisit() { return {id:++nextRowId,timing:'',details:''}; }
 function makeProcedureEvent() { return {id:++nextRowId,age:'',type:'',institution:'',details:''}; }
+function reserveSavedRowIds(draft) {
+  const rowLists = ['obstetricHistory','prenatalVisits','procedureEvents','entProcedureEvents',
+    'pediaProcedureEvents','pediaPrenatalVisits','pediaObstetricHistory'];
+  const savedIds = rowLists.flatMap(key => Array.isArray(draft[key]) ? draft[key].map(row => Number(row?.id) || 0) : []);
+  nextRowId = Math.max(nextRowId, ...savedIds);
+}
 function moveRow(setRows,index,direction) {
   setRows(rows=>{const target=index+direction;if(target<0||target>=rows.length)return rows;const copy=[...rows];[copy[index],copy[target]]=[copy[target],copy[index]];return copy;});
 }
@@ -333,21 +351,39 @@ function EditableLogTable({title,description,rows,setRows,createRow,columns,rowL
 }
 
 export default function App() {
-  const [tab,setTab] = useState('ob');
-  const [ob,setOb] = useState(()=>blank(obFields));
-  const [obstetricHistory,setObstetricHistory] = useState(()=>[makePregnancy()]);
-  const [prenatalVisits,setPrenatalVisits] = useState(()=>[makePrenatalVisit()]);
-  const [procedureEvents,setProcedureEvents] = useState(()=>[makeProcedureEvent()]);
-  const [obProcedureSelections,setObProcedureSelections] = useState(()=>[]);
-  const [entProcedureEvents,setEntProcedureEvents] = useState(()=>[makeProcedureEvent()]);
-  const [entProcedureSelections,setEntProcedureSelections] = useState(()=>[]);
-  const [pediaProcedureEvents,setPediaProcedureEvents] = useState(()=>[makeProcedureEvent()]);
-  const [pediaProcedureSelections,setPediaProcedureSelections] = useState(()=>[]);
-  const [pediaPrenatalVisits,setPediaPrenatalVisits] = useState(()=>[makePrenatalVisit()]);
-  const [pediaObstetricHistory,setPediaObstetricHistory] = useState(()=>[makePregnancy()]);
-  const [ent,setEnt] = useState(()=>({...blank(entFields),entFormat:'blotter'}));
-  const [pedia,setPedia] = useState(()=>blank(pediaFields));
+  const [savedDraft] = useState(() => {
+    const draft = readLocalDraft();
+    reserveSavedRowIds(draft);
+    return draft;
+  });
+  const [tab,setTab] = useState(()=>savedDraft.tab || 'ob');
+  const [ob,setOb] = useState(()=>({...blank(obFields),...(savedDraft.ob || {})}));
+  const [obstetricHistory,setObstetricHistory] = useState(()=>savedDraft.obstetricHistory || [makePregnancy()]);
+  const [prenatalVisits,setPrenatalVisits] = useState(()=>savedDraft.prenatalVisits || [makePrenatalVisit()]);
+  const [procedureEvents,setProcedureEvents] = useState(()=>savedDraft.procedureEvents || [makeProcedureEvent()]);
+  const [obProcedureSelections,setObProcedureSelections] = useState(()=>savedDraft.obProcedureSelections || []);
+  const [entProcedureEvents,setEntProcedureEvents] = useState(()=>savedDraft.entProcedureEvents || [makeProcedureEvent()]);
+  const [entProcedureSelections,setEntProcedureSelections] = useState(()=>savedDraft.entProcedureSelections || []);
+  const [pediaProcedureEvents,setPediaProcedureEvents] = useState(()=>savedDraft.pediaProcedureEvents || [makeProcedureEvent()]);
+  const [pediaProcedureSelections,setPediaProcedureSelections] = useState(()=>savedDraft.pediaProcedureSelections || []);
+  const [pediaPrenatalVisits,setPediaPrenatalVisits] = useState(()=>savedDraft.pediaPrenatalVisits || [makePrenatalVisit()]);
+  const [pediaObstetricHistory,setPediaObstetricHistory] = useState(()=>savedDraft.pediaObstetricHistory || [makePregnancy()]);
+  const [ent,setEnt] = useState(()=>({...blank(entFields),entFormat:'blotter',...(savedDraft.ent || {})}));
+  const [pedia,setPedia] = useState(()=>({...blank(pediaFields),...(savedDraft.pedia || {})}));
   const [copied,setCopied] = useState(false);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
+        tab, ob, obstetricHistory, prenatalVisits, procedureEvents, obProcedureSelections,
+        entProcedureEvents, entProcedureSelections, pediaProcedureEvents, pediaProcedureSelections,
+        pediaPrenatalVisits, pediaObstetricHistory, ent, pedia
+      }));
+    } catch {
+      // The form remains usable if browser storage is unavailable or full.
+    }
+  }, [tab, ob, obstetricHistory, prenatalVisits, procedureEvents, obProcedureSelections,
+    entProcedureEvents, entProcedureSelections, pediaProcedureEvents, pediaProcedureSelections,
+    pediaPrenatalVisits, pediaObstetricHistory, ent, pedia]);
   const data = tab==='ob'?ob:tab==='pedia'?pedia:ent;
   const setData = tab==='ob'?setOb:tab==='pedia'?setPedia:setEnt;
   const output = useMemo(()=>tab==='ob'?buildOb(ob,obstetricHistory,prenatalVisits,procedureEvents,obProcedureSelections):tab==='pedia'?buildPedia(pedia,pediaProcedureEvents,pediaPrenatalVisits,pediaProcedureSelections,pediaObstetricHistory):buildEnt(ent,entProcedureEvents,entProcedureSelections),[tab,ob,obstetricHistory,prenatalVisits,procedureEvents,obProcedureSelections,entProcedureEvents,entProcedureSelections,pedia,pediaProcedureEvents,pediaPrenatalVisits,pediaProcedureSelections,pediaObstetricHistory,ent]);
@@ -415,7 +451,7 @@ export default function App() {
             {ent.entFormat==='trauma'&&<><Section title="Working impression & injury details"><Field label="Working impression" multiline value={ent.workingImpression} onChange={v=>update('workingImpression',v)} placeholder="Enter each impression on a new line."/><div className="grid two"><Field label="NOI · Nature of injury" value={ent.noi} onChange={v=>update('noi',v)}/><Field label="TOI · Time of injury" type="time" value={ent.toi} onChange={v=>update('toi',v)}/><Field label="DOI · Date of injury" type="date" value={ent.doi} onChange={v=>update('doi',v)}/><Field label="POI · Place of injury" value={ent.poi} onChange={v=>update('poi',v)}/></div><Field label="Injury narrative" multiline value={ent.injuryNarrative} onChange={v=>update('injuryNarrative',v)}/></Section><Section title="Past medical history" description="Choose None alone, or select all applicable history."><CheckGroup options={entPmhOptions} selected={ent.pmhSelections} onChange={v=>update('pmhSelections',v)} exclusive={['None']}/><Toggle label="No maintenance medication" checked={ent.medicationsNone==='yes'} onChange={v=>update('medicationsNone',v)}/>{ent.medicationsNone!=='yes'&&<Field label="Maintenance medications" value={ent.maintenanceMeds} onChange={v=>update('maintenanceMeds',v)}/>}</Section><Section title="Previous admissions or surgeries" description="Select each applicable history, then add one row per event."><CheckGroup options={procedureHistoryOptions} selected={entProcedureSelections} onChange={setEntProcedureSelections}/>{entProcedureSelections.length>0&&<EditableLogTable title="Previous hospitalizations or surgeries" description="Add one row per admission or procedure." rows={entProcedureEvents} setRows={setEntProcedureEvents} createRow={makeProcedureEvent} columns={procedureLogColumns} rowLabel="Event" addLabel="Add hospitalization / surgery" kind="events"/>}</Section><Section title="Immunizations"><CheckGroup options={["Childhood Immunizations","COVID-19 vaccine"]} selected={ent.immunizationSelections} onChange={v=>update('immunizationSelections',v)}/></Section><Section title="Personal & social history"><div className="grid two"><Field label="Smoking history" value={ent.pshSmoking} onChange={v=>update('pshSmoking',v)} options={[["","Select"],["No","No"],["Yes","Yes"]]}/><Field label="Alcohol history" value={ent.pshAlcohol} onChange={v=>update('pshAlcohol',v)} options={[["","Select"],["No","No"],["Yes","Yes"]]}/><Field label="Illicit drug use" value={ent.pshDrugs} onChange={v=>update('pshDrugs',v)} options={[["","Select"],["No","No"],["Yes","Yes"]]}/><Field label="Food or drug allergies" value={ent.allergies} onChange={v=>update('allergies',v)}/></div></Section><Section title="Family history"><Toggle label="No known family history" checked={ent.familyDiseasesNone==='yes'} onChange={v=>{update('familyDiseasesNone',v);entFamilyFields.forEach(([key])=>update(key,''));}}/>{ent.familyDiseasesNone!=='yes'&&<div className="family-checkbox-grid">{entFamilyFields.map(([key,label])=><FamilyRow key={key} label={label} value={ent[key]||''} onChange={v=>update(key,v)}/>)}</div>}</Section><Section title="Physical examination"><Field label="General survey" multiline value={ent.traumaSurvey} onChange={v=>update('traumaSurvey',v)}/><StatusChecklist items={traumaFindings} selected={ent.traumaFindings} onChange={v=>update('traumaFindings',v)}/></Section></>}{ent.entFormat==='complete'&&<><Section title="History & assessment"><Field label="History of present illness" multiline value={ent.hpi} onChange={v=>update('hpi',v)}/><Field label="Assessment" multiline value={ent.assessment} onChange={v=>update('assessment',v)}/></Section><Section title="Past medical history"><small>Choose None alone, or select all applicable history.</small><CheckGroup options={entPmhOptions} selected={ent.pmhSelections} onChange={v=>update('pmhSelections',v)} exclusive={['None']}/></Section><Section title="Previous admissions or surgeries"><small>Select each applicable history, then add one row per event.</small><CheckGroup options={procedureHistoryOptions} selected={entProcedureSelections} onChange={setEntProcedureSelections}/>{entProcedureSelections.length>0&&<EditableLogTable title="Previous hospitalizations or surgeries" description="Add one row per admission or procedure." rows={entProcedureEvents} setRows={setEntProcedureEvents} createRow={makeProcedureEvent} columns={procedureLogColumns} rowLabel="Event" addLabel="Add hospitalization / surgery" kind="events"/>}</Section><Section title="Immunizations"><CheckGroup options={["Childhood Immunizations","COVID-19 vaccine"]} selected={ent.immunizationSelections} onChange={v=>update("immunizationSelections",v)}/></Section><Section title="Personal & social history"><Field label="Smoking history" value={ent.pshSmoking} onChange={v=>update('pshSmoking',v)} options={[["","Select"],["No","No"],["Yes","Yes"]]}/><Field label="Alcohol history" value={ent.pshAlcohol} onChange={v=>update('pshAlcohol',v)} options={[["","Select"],["No","No"],["Yes","Yes"]]}/><Field label="Illicit drug use" value={ent.pshDrugs} onChange={v=>update('pshDrugs',v)} options={[["","Select"],["No","No"],["Yes","Yes"]]}/><Field label="Food or drug allergies" value={ent.allergies} onChange={v=>update('allergies',v)}/></Section><Section title="Family history"><div className="family-checkbox-grid">{entFamilyFields.map(([key,label])=><FamilyRow key={key} label={label} value={ent[key]||''} onChange={v=>update(key,v)}/>)}</div></Section><Section title="Physical examination"><Field label="General survey" multiline value={ent.generalSurvey} onChange={v=>update('generalSurvey',v)}/>{entExamGroups.map(([label,key,items])=><div className="exam-card" key={key}><h3>{label}</h3><StatusChecklist items={items} selected={ent[key]} onChange={v=>update(key,v)}/></div>)}</Section></>}
           </>}
         </div>
-        <aside className="preview-column"><div className="preview-sticky"><div className="preview-heading"><div><span className="form-index">LIVE PREVIEW</span><h2>Ready to send</h2></div><span className="live-dot">LIVE</span></div><div className="preview-paper"><div className="paper-top"><span>MESSAGE PREVIEW</span><span>PLAIN TEXT</span></div><textarea className="preview-output" readOnly value={output} aria-label="Generated message preview"/></div><button className="copy-button" onClick={copyOutput}><span>{copied?'✓':'▣'}</span>{copied?'Copied':'Copy message'}<kbd>{copied?'READY':'⌘ C'}</kbd></button><p className="preview-hint">Review the message before sending. The app does not save or transmit form entries.</p></div></aside>
+        <aside className="preview-column"><div className="preview-sticky"><div className="preview-heading"><div><span className="form-index">LIVE PREVIEW</span><h2>Ready to send</h2></div><span className="live-dot">LIVE</span></div><div className="preview-paper"><div className="paper-top"><span>MESSAGE PREVIEW</span><span>PLAIN TEXT</span></div><textarea className="preview-output" readOnly value={output} aria-label="Generated message preview"/></div><button className="copy-button" onClick={copyOutput}><span>{copied?'✓':'▣'}</span>{copied?'Copied':'Copy message'}<kbd>{copied?'READY':'⌘ C'}</kbd></button><p className="preview-hint">Draft saves automatically in this browser on this device. Clear the form to remove its saved draft.</p></div></aside>
       </div>
     </main>
   </div>;
