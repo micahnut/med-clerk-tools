@@ -560,7 +560,7 @@ export default function App() {
   }
 
   return <div className="app">
-    <header className="topbar"><div className="topbar-left"><a className="brand" href="#"><span className="brand-mark" aria-hidden="true"/><span>med tools</span></a><nav className="project-links" aria-label="Other projects"><a href="https://micahnut.github.io/friedmans-curve/" target="_blank" rel="noreferrer">Friedman Curve</a><a href="https://micahnut.github.io/er-board-tracker/" target="_blank" rel="noreferrer">ER Board</a></nav></div></header>
+    <header className="topbar"><div className="topbar-left"><a className="brand" href="#"><span className="brand-mark" aria-hidden="true"/><span>med tools</span></a><nav className="project-links" aria-label="Other projects"><a href="https://micahnut.github.io/friedmans-curve/" target="_blank" rel="noreferrer">Friedman Curve</a></nav></div></header>
     <main className="page">
       <nav className="tabs" aria-label="Form type"><button className={tab==='ob'?'active':''} onClick={()=>{setTab('ob');setCopied(false)}}>OB-GYN <span>01</span></button><button className={tab==='pedia'?'active':''} onClick={()=>{setTab('pedia');setCopied(false)}}>PEDIA <span>02</span></button><button className={tab==='ent'?'active':''} onClick={()=>{setTab('ent');setCopied(false)}}>ENT <span>03</span></button><button className={tab==='rx'?'active':''} onClick={()=>{setTab('rx');setCopied(false)}}>PRESCRIPTION <span>04</span></button></nav>
       <div className={`workspace ${tab==='rx'?'workspace-rx':''} ${tab==='ob'?'workspace-ob':''} ${tab==='ob'&&ob.obFormat==='gynecology'?'workspace-ob-gynecology':''}`}>
