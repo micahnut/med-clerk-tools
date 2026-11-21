@@ -38,17 +38,17 @@
 .editable-log-header h3{margin:0;color:#435268;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .editable-log-header p{margin:4px 0 0;color:#839087;font-size:9px}
 .editable-log-header>button{flex:none;border:1px solid #dfe6ed;border-radius:5px;background:#fff;color:#35465a;padding:7px 10px;font-size:10px;font-weight:600}
-.editable-log-scroll{overflow-x:auto;overscroll-behavior-inline:contain}
+.editable-log-scroll{overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
 .editable-log table{width:100%;min-width:930px;border-collapse:collapse;font-size:10px}
 .editable-log-events table{min-width:620px}
-.editable-log-prenatal table{min-width:720px}
+.editable-log-prenatal table{min-width:760px;table-layout:fixed}
 .editable-log th,.editable-log td{padding:6px;border-right:1px solid #e5ebf1;border-bottom:1px solid #e5ebf1;text-align:left;vertical-align:middle}
 .editable-log thead th{background:#f0f4f9;color:#526177;font-size:8px;font-weight:700;text-transform:uppercase;white-space:nowrap}
 .editable-log tbody th{width:36px;color:#36485d;font-weight:600;background:#fbfcfd}
 .editable-log td input,.editable-log td select,.editable-log td textarea{width:100%;min-width:76px;border:1px solid #e4e9e4;border-radius:4px;background:#fcfdfb;color:#354239;padding:6px 7px;font:inherit;outline:none}
 .editable-log td input:focus,.editable-log td select:focus,.editable-log td textarea:focus{border-color:#82ac91;box-shadow:0 0 0 2px #e9f2eb}
 .editable-log td textarea{display:block;min-height:44px;resize:vertical}
-.editable-log td input::placeholder{color:#a2ada5}
+.editable-log td input::placeholder{color:#a2ada5}.editable-log td .date-input-wrap{gap:3px}.editable-log td .date-input-wrap>input[type=text]{width:100%;min-width:0;padding:6px 4px;font-size:9px}.editable-log td .date-picker-button{width:25px;min-width:25px;padding:0;font-size:12px}
 .editable-log td.editable-log-action{width:46px;text-align:center}
 .editable-log-action button{display:inline-grid;width:25px;height:25px;place-items:center;border:0;border-radius:4px;background:transparent;color:#bb6c6c}
 .editable-log-action button:hover{background:#fff1f1}

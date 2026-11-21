@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const DRAFT_STORAGE_KEY = 'med-tools-form-draft-v1';
+const SHOW_PRESCRIPTION_TAB = false;
 function localToday() {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -170,16 +171,44 @@ function calculateBishopScore(data) {
   if(!keys.every(key=>data[`bishop${key[0].toUpperCase()}${key.slice(1)}`])) return null;
   return keys.reduce((total,key)=>total+bishopPoints[key][data[`bishop${key[0].toUpperCase()}${key.slice(1)}`]],0);
 }
+function parseDateValue(value) {
+  const text=String(value||'').trim();
+  let match=text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(match){const [,y,m,d]=match;return validDateParts(Number(y),Number(m),Number(d));}
+  match=text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
+  if(match){let [,m,d,y]=match;let year=Number(y);if(y.length===2)year+=year<50?2000:1900;return validDateParts(year,Number(m),Number(d));}
+  return '';
+}
+function validDateParts(year,month,day) {
+  const date=new Date(Date.UTC(year,month-1,day));
+  return date.getUTCFullYear()===year&&date.getUTCMonth()===month-1&&date.getUTCDate()===day?`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`:'';
+}
+function displayDateValue(value) {
+  const iso=parseDateValue(value);if(!iso)return String(value||'');
+  const [year,month,day]=iso.split('-');return `${month}/${day}/${year}`;
+}
+function DateInput({value,onChange,ariaLabel='',table=false}) {
+  const [text,setText]=useState(()=>displayDateValue(value));
+  const textRef=useRef(null), pickerRef=useRef(null);
+  useEffect(()=>{if(document.activeElement!==textRef.current)setText(displayDateValue(value));},[value]);
+  const updateText=raw=>{setText(raw);onChange(parseDateValue(raw)||raw);};
+  const chooseDate=raw=>{onChange(raw);setText(displayDateValue(raw));};
+  const openPicker=()=>{const picker=pickerRef.current;if(!picker)return;try{if(picker.showPicker)picker.showPicker();else picker.click();}catch{picker.focus();picker.click();}};
+  return <span className={`date-input-wrap${table?' date-input-table':''}`}><input ref={textRef} type="text" inputMode="numeric" placeholder="MM/DD/YYYY" aria-label={ariaLabel} value={text} onChange={event=>updateText(event.target.value)} onBlur={()=>{const parsed=parseDateValue(text);if(parsed){setText(displayDateValue(parsed));onChange(parsed);}}}/><button type="button" className="date-picker-button" aria-label={`Open calendar for ${ariaLabel||'date'}`} title="Open calendar" onClick={openPicker}>▦</button><input ref={pickerRef} className="date-picker-native" type="date" tabIndex={-1} aria-hidden="true" value={parseDateValue(value)} onChange={event=>chooseDate(event.target.value)}/></span>;
+}
+
 function formatDate(value, short=false) {
   if (!value) return '';
-  const date = new Date(`${value}T00:00:00`);
+  const normalized=parseDateValue(value)||value;
+  const date = new Date(`${normalized}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
   if (short) return date.toLocaleDateString('en-US',{month:'short',day:'numeric'}).replace(/^Sep /,'Sept ');
   return `${date.getMonth()+1}/${date.getDate()}/${date.getFullYear()}`;
 }
 function calendarDayNumber(value) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const [year, month, day] = value.split('-').map(Number);
+  const normalized=parseDateValue(value);
+  if (!normalized) return null;
+  const [year, month, day] = normalized.split('-').map(Number);
   return Math.floor(Date.UTC(year, month-1, day) / 86400000);
 }
 function formatAogDays(totalDays) {
@@ -278,64 +307,53 @@ function buildNewMom(data) {
 
 function buildOb(data, obstetricHistory, prenatalVisits, procedureEvents, procedureSelections=[]) {
   if (data.obFormat==='newMom') return buildNewMom(data);
-  const parts = [];
-  parts.push(obTextFields.slice(0,8).map(([key,label])=>labeled(label,data[key])).join('\n'));
-  const ccDateTime = formatDateTime(data.ccDateTime);
-  parts.push(labeled('CC',[clean(data.cc),ccDateTime?`(${ccDateTime})`:'' ].filter(Boolean).join(' ')));
-  parts.push(`HPI:\n${clean(data.hpi)}`);
-  const amount = [clean(data.menstrualAmount) && `${clean(data.menstrualAmount)} pads per day`, clean(data.menstrualSoak)].filter(Boolean).join(', ');
-  const interval = `${clean(data.menstrualI)}${clean(data.menstrualIntervalDays) ? ` (${clean(data.menstrualIntervalDays)} days)` : ''}`.trim();
-  const symptoms = [data.mDysmenorrhea === 'yes' ? 'Dysmenorrhea' : '', clean(data.menstrualAssociated)].filter(Boolean).join(', ');
-  parts.push(titled('MENSTRUAL HISTORY', [['M',data.menstrualM],['I',interval],['D',data.menstrualD],['A',amount],['A',symptoms]]));
-  const partners = [clean(data.sexualPartnersQty), clean(data.sexualPartnersGender)].filter(Boolean).join(', ');
-  const contraception = data.sexualC2 === 'Other' ? clean(data.sexualContraceptiveOther) : clean(data.sexualC2);
-  const pap = [formatYear(data.sexualP2), data.sexualPapFinding && data.sexualPapFinding !== 'Not stated' ? clean(data.sexualPapFinding) : ''].filter(Boolean).join(', ');
-  const sti = data.sexualS === 'History' ? `History - ${clean(data.sexualStiDetails)}` : clean(data.sexualS);
-  parts.push(titled('SEXUAL HISTORY', [['C',data.sexualC1],['P',partners],['C',contraception],['P',pap],['S',sti]]));
-  const gravParity = clean(data.gravidaCount)||clean(data.parityCount);
-  const tpalValues = [data.termCount,data.pretermCount,data.abortionCount,data.liveBirthCount];
-  const obsSummary = gravParity ? `G${clean(data.gravidaCount)||'0'}P${clean(data.parityCount)||'0'}${tpalValues.some(clean)?` (${tpalValues.map(value=>clean(value)||'0').join('')})`:''}` : data.obs;
-  parts.push(titled('OB HISTORY', [['OBS',obsSummary],['LMP',formatDate(data.lmp)],['PMP',formatDate(data.pmp)],['EDD',calculateEdd(data.lmp)]]));
-  parts.push(`OBSTETRICAL HISTORY\n${formatPregnancyRows(obstetricHistory)}`);
-  parts.push(`PRENATAL HISTORY\n${formatObPrenatalRows(prenatalVisits,data)}`);
-  const pmh = Array.isArray(data.pmhSelections) ? data.pmhSelections : [];
-  const pmhOutput = pmh.includes('None')?'None':pmh.join(', ');
-  parts.push(`PAST MEDICAL HISTORY:\n${pmhOutput}`);
-  const procedureDetails = procedureEvents.map(row=>[clean(row.age),clean(row.type),clean(row.institution),clean(row.details)].filter(Boolean).join(' — ')).filter(Boolean);
-  if (procedureSelections.length||procedureDetails.length) parts.push(`PREVIOUS HOSPITALIZATIONS OR SURGERIES:\n${[...procedureSelections,...procedureDetails.map(item=>`- ${item}`)].join('\n')}`);
-  parts.push(`CURRENT MEDICATIONS\n${clean(data.medications)}`);
-  const vaccineRows=[['COVID',data.vaccineCovid],['Influenza',data.vaccineFlu],['Pneumococcal',data.vaccinePneumococcal],['Tetanus / TT',data.vaccineTt],['Tdap',data.vaccineTdap],['Booster',data.vaccineBooster]].filter(([label,detail])=>(Array.isArray(data.immunizationSelections)&&data.immunizationSelections.includes(label))||clean(detail));
-  if(vaccineRows.length)parts.push(`VACCINES RECEIVED\n${vaccineRows.map(([label,detail])=>`${label}: ${clean(detail)}`).join('\n')}`);
-  const allergyFlags=Array.isArray(data.allergyFlags)?data.allergyFlags:[];
-  const allergyOutput=allergyFlags.includes('No known allergies')?'None':allergyFlags.includes('Known allergy')?(clean(data.allergies)||'Known allergies'):data.allergyStatus==='None'?'None':data.allergyStatus==='Unknown'?'Unknown':data.allergies;
-  const personalSocialRows=[allergyOutput?labeled('FOOD AND DRUG ALLERGIES',allergyOutput):''].filter(Boolean);
-  const obSocialRows=[clean(data.smoking)?`(${data.smoking==='No'?'-':'+'}) Smoking`:'',clean(data.alcohol)?`(${data.alcohol==='No'?'-':'+'}) Alcohol${clean(data.alcoholDetails)?` — ${clean(data.alcoholDetails)}`:''}`:'',clean(data.illicitDrugUse)?`(${data.illicitDrugUse==='No'?'-':'+'}) Illicit drug use`:''].filter(Boolean);
-  parts.push(`PERSONAL AND SOCIAL HISTORY\n${[...personalSocialRows,...obSocialRows].join('\n')}`);
-  const familyMedicalRows=obFamilyOrder.map(([key,label])=>{const relation=data[`family_${key}`];if(data.familyHistoryNone==='yes'||relation==='None')return `(-) ${label.toUpperCase()}`;if(!relation)return '';const detail=key==='Cancer'?clean(data.family_CancerDetail):'';return `(+) ${label.toUpperCase()} - ${[detail,relation].filter(Boolean).join(', ')}`;}).filter(Boolean);
-  parts.push(`Family Medical Hx:\n${familyMedicalRows.join('\n')}`);
-  const abdominalDetails = data.obFormat==='gynecology' ? [clean(data.gyneAbdominalExam)].filter(Boolean) : [clean(data.abdomenAppearance),clean(data.fundalHeight)&&`FH ${clean(data.fundalHeight)} cm`,clean(data.fht)&&`FHT ${clean(data.fht)}`,clean(data.efw)&&`EFW ${clean(data.efw)} g`].filter(Boolean);
-  if (data.obFormat!=='gynecology') parts.push(`ABDOMINAL EXAM\n${abdominalDetails.join(', ')}`);
-  else parts.push(`ABDOMINAL EXAM:\n${abdominalDetails.join(', ')}`);
-  if (data.obFormat==='gynecology') {
-    const icuad = [['I',data.peIntroitus],['C',data.peCervix],['U',data.peUterus],['A',data.peAdnexa],['D',data.peDischarge]].map(([label,value])=>` ${label} - ${clean(value)}`);
-    parts.push(`ICUAD:\n${icuad.join('\n')}`);
-  } else {
-    const l2Details=[data.leopoldL2MR&&`MR - ${clean(data.leopoldL2MR)}`,data.leopoldL2ML&&`ML - ${clean(data.leopoldL2ML)}`].filter(Boolean).join('; ')||clean(data.leopoldL2);
-    const leopoldDetails = [['L1',data.leopoldL1],['L2',l2Details],['L3',data.leopoldL3],['L4',data.leopoldL4]].filter(([,value])=>clean(value)).map(([label,value])=>`${label}: ${clean(value)}`);
-    parts.push(`LEOPOLDS MANEUVERS\n${['L1','L2','L3','L4'].map(label=>{const line=leopoldDetails.find(item=>item.startsWith(`${label}:`));return line||`${label}:`;}).join('\n')}`);
-  }
-  const bishopScore=calculateBishopScore(data);
-  const ieDetails=[data.bishopDilation&&`Dilation: ${data.bishopDilation}`,data.bishopEffacement&&`Effacement: ${data.bishopEffacement}`,data.bishopStation&&`Station: ${data.bishopStation}`,data.bishopConsistency&&`Consistency: ${data.bishopConsistency}`,data.bishopPosition&&`Position: ${data.bishopPosition}`,bishopScore!==null&&`Bishop score: ${bishopScore}/13`].filter(Boolean);
-  if (data.obFormat!=='gynecology') {
-    if (ieDetails.length) parts.push(labeled('IE SUMMARY',ieDetails.join('; ')));
-    else if (clean(data.ieSummary)) parts.push(labeled('IE SUMMARY',data.ieSummary));
-    else parts.push('IE SUMMARY: ');
-  } else {
-    parts.push('IE SUMMARY: ');
-  }
-  parts.push(`ADMITTING DIAGNOSIS:\n${clean(data.admittingDiagnosis)}`);
-  parts.push(titled('VITAL SIGNS', [['BP',data.vsBp],['HR',data.vsHr],['RR',data.vsRr],['TEMP',data.vsTemp],['PPW',data.vsPpw],['WT',data.vsWt],['HT',data.vsHt]]));
-  return uppercaseOutputLabels(parts.join('\n\n').trim());
+  return buildObTemplate(data, obstetricHistory, prenatalVisits, procedureEvents, procedureSelections);
+}
+
+function buildObTemplate(data, obstetricHistory, prenatalVisits, procedureEvents, procedureSelections=[]) {
+  const dateTime=formatDateTime(data.ccDateTime);
+  const legacyFlows={'Lightly soaked':'Light','Moderately soaked':'Moderate','Moderate, regular pad':'Moderate','Fully soaked':'Heavy'};
+  const flow=legacyFlows[clean(data.menstrualSoak)]||clean(data.menstrualSoak);
+  const amount=[clean(data.menstrualAmount)&&`${clean(data.menstrualAmount)} pads/day`,flow&&`${flow} flow`].filter(Boolean).join(', ');
+  const interval=`${clean(data.menstrualI)}${clean(data.menstrualIntervalDays)?` (${clean(data.menstrualIntervalDays)} days)`:''}`.trim();
+  const symptoms=[data.mDysmenorrhea==='yes'?'Dysmenorrhea':'',clean(data.menstrualAssociated)].filter(Boolean).join(', ');
+  const partners=[clean(data.sexualPartnersQty),clean(data.sexualPartnersGender)].filter(Boolean).join(', ');
+  const contraception=data.sexualC2==='Other'?clean(data.sexualContraceptiveOther):clean(data.sexualC2);
+  const pap=[formatYear(data.sexualP2),data.sexualPapFinding&&data.sexualPapFinding!=='Not stated'?clean(data.sexualPapFinding):''].filter(Boolean).join(', ');
+  const sti=data.sexualS==='History'?`History - ${clean(data.sexualStiDetails)}`:clean(data.sexualS);
+  const pmh=Array.isArray(data.pmhSelections)?data.pmhSelections:[];
+  const procedures=procedureEvents.map(row=>[clean(row.age),clean(row.type),clean(row.institution),clean(row.details)].filter(Boolean).join(' — ')).filter(Boolean);
+  const pmhRows=[pmh.includes('None')?'None':pmh.join(', '),...procedureSelections,...procedures.map(row=>`- ${row}`)].filter(Boolean);
+  const vaccines=[['COVID',data.vaccineCovid],['Influenza',data.vaccineFlu],['Pneumococcal',data.vaccinePneumococcal],['Tetanus / TT',data.vaccineTt],['Tdap',data.vaccineTdap],['Booster',data.vaccineBooster]].filter(([label,detail])=>(Array.isArray(data.immunizationSelections)&&data.immunizationSelections.includes(label))||clean(detail)).map(([label,detail])=>`${label}: ${clean(detail)}`);
+  const flags=Array.isArray(data.allergyFlags)?data.allergyFlags:[];
+  const allergy=flags.includes('No known allergies')?'None':flags.includes('Known allergy')?(clean(data.allergies)||'Known allergies'):data.allergyStatus==='None'?'None':data.allergyStatus==='Unknown'?'Unknown':clean(data.allergies);
+  const social=[allergy?labeled('FOOD AND DRUG ALLERGIES',allergy):'',...vaccines,clean(data.smoking)?`(${data.smoking==='No'?'-':'+'}) Smoking`:'',clean(data.alcohol)?`(${data.alcohol==='No'?'-':'+'}) Alcohol${clean(data.alcoholDetails)?` — ${clean(data.alcoholDetails)}`:''}`:'',clean(data.illicitDrugUse)?`(${data.illicitDrugUse==='No'?'-':'+'}) Illicit drug use`:''].filter(Boolean);
+  const family=obFamilyOrder.map(([key,label])=>{const relation=data[`family_${key}`];if(data.familyHistoryNone==='yes'||relation==='None')return `(-) ${label.toUpperCase()}`;if(!relation)return '';const detail=key==='Cancer'?clean(data.family_CancerDetail):'';return `(+) ${label.toUpperCase()} - ${[detail,relation].filter(Boolean).join(', ')}`;}).filter(Boolean);
+  const abdomen=data.obFormat==='gynecology'?[clean(data.gyneAbdominalExam)].filter(Boolean):[clean(data.abdomenAppearance),clean(data.fundalHeight)&&`FH ${clean(data.fundalHeight)} cm`,clean(data.fht)&&`FHT ${clean(data.fht)}`,clean(data.efw)&&`EFW ${clean(data.efw)} g`].filter(Boolean);
+  const l2=[data.leopoldL2MR&&`MR - ${clean(data.leopoldL2MR)}`,data.leopoldL2ML&&`ML - ${clean(data.leopoldL2ML)}`].filter(Boolean).join('; ')||clean(data.leopoldL2);
+  const leopolds={L1:data.leopoldL1,L2:l2,L3:data.leopoldL3,L4:data.leopoldL4};
+  const score=calculateBishopScore(data);
+  const ie=[data.bishopDilation&&`Dilation: ${data.bishopDilation}`,data.bishopEffacement&&`Effacement: ${data.bishopEffacement}`,data.bishopStation&&`Station: ${data.bishopStation}`,data.bishopConsistency&&`Consistency: ${data.bishopConsistency}`,data.bishopPosition&&`Position: ${data.bishopPosition}`,score!==null&&`Bishop score: ${score}/13`].filter(Boolean).join('; ')||clean(data.ieSummary);
+  const sections=[
+    obTextFields.slice(0,8).map(([key,label])=>labeled(label,data[key])).join('\n'),
+    labeled('CC',[clean(data.cc),dateTime?`(${dateTime})`:'' ].filter(Boolean).join(' ')),
+    `HPI:\n${clean(data.hpi)}`,
+    titled('MENSTRUAL HISTORY',[['M',data.menstrualM],['I',interval],['D',data.menstrualD],['A',amount],['S',symptoms]]),
+    titled('SEXUAL HISTORY',[['C',data.sexualC1],['P',partners],['C',contraception],['P',pap],['S',sti]]),
+    titled('OB HISTORY',[['LMP',formatDate(data.lmp)],['PMP',formatDate(data.pmp)],['EDD',calculateEdd(data.lmp)]]),
+    `OBSTETRICAL HISTORY:\n${formatPregnancyRows(obstetricHistory)}`,
+    `PRENATAL HISTORY:\n${formatObPrenatalRows(prenatalVisits,data)}`,
+    `PAST MEDICAL HISTORY:\n${pmhRows.join('\n')}`,
+    `CURRENT MEDICATIONS:\n${clean(data.medications)}`,
+    `PERSONAL AND SOCIAL HISTORY:\n${social.join('\n')}`,
+    `FAMILY MEDICAL HX:\n${family.join('\n')}`,
+    `ABDOMINAL EXAM:\n${abdomen.join(', ')}`,
+    `LEOPOLDS MANEUVERS\n${['L1','L2','L3','L4'].map(label=>`${label}: ${clean(leopolds[label])}`).join('\n')}`,
+    `IE SUMMARY: ${ie}`,
+    `ADMITTING DIAGNOSIS:\n${clean(data.admittingDiagnosis)}`,
+    titled('VITAL SIGNS',[['BP',data.vsBp],['HR',data.vsHr],['RR',data.vsRr],['TEMP',data.vsTemp],['PPW',data.vsPpw],['WT',data.vsWt],['HT',data.vsHt]])
+  ];
+  return uppercaseOutputLabels(sections.join('\n\n').replace(/\n{3,}/g,'\n\n').trim());
 }
 
 function buildPedia(data, procedureEvents=[], prenatalVisits=[], procedureSelections=[], obstetricHistory=[]) {
@@ -407,7 +425,7 @@ function buildPedia(data, procedureEvents=[], prenatalVisits=[], procedureSelect
 
 function Field({ label, value, onChange, multiline=false, hint='', placeholder='', type='text', options=null }) {
   const props = { value, onChange:e=>onChange(e.target.value), placeholder, 'aria-label':label, type };
-  return <label className={`field ${multiline?'wide':''}`}><span>{label}</span>{multiline?<textarea {...props} rows={label==='HPI'?5:3}/>:options?<select {...props}>{options.map(([option,labelText])=><option key={option} value={option}>{labelText}</option>)}</select>:<input {...props}/ >}{hint&&<small>{hint}</small>}</label>;
+  return <label className={`field ${multiline?'wide':''}`}><span>{label}</span>{multiline?<textarea {...props} rows={label==='HPI'?5:3}/>:options?<select {...props}>{options.map(([option,labelText])=><option key={option} value={option}>{labelText}</option>)}</select>:type==='date'?<DateInput value={value} onChange={onChange} ariaLabel={label}/>:<input {...props}/ >}{hint&&<small>{hint}</small>}</label>;
 }
 function prescriptionDate(value) {
   if (!value) return '';
@@ -465,7 +483,7 @@ function ConfirmationModal({title,message,confirmLabel='Confirm',onCancel,onConf
 function EditableLogTable({title,description,rows,setRows,createRow,columns,rowLabel,addLabel,kind='events'}) {
   const [pendingDelete,setPendingDelete]=useState(null);
   const changeCell=(id,key,value)=>setRows(items=>items.map(item=>item.id===id?{...item,[key]:value}:item));
-  return <><div className={`editable-log editable-log-${kind}`}><div className="editable-log-header"><div><h3>{title}</h3>{description&&<p>{description}</p>}</div><button type="button" onClick={()=>setRows(items=>[...items,createRow()])}>＋ {addLabel}</button></div><div className="editable-log-scroll"><table><thead><tr><th>{rowLabel}</th>{columns.map(column=><th key={column.key}>{column.label}</th>)}<th>Action</th></tr></thead><tbody>{rows.map((row,index)=><tr key={row.id}><th scope="row">{rowLabel==='G'?`G${index+1}`:index+1}</th>{columns.map(column=><td key={column.key}>{column.render?column.render(row,index):column.options?<select aria-label={`${rowLabel==='G'?`G${index+1}`:`Event ${index+1}`} ${column.label}`} value={row[column.key]||''} onChange={event=>changeCell(row.id,column.key,event.target.value)}>{column.options.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>:column.multiline?<textarea aria-label={`${rowLabel==='G'?`G${index+1}`:`Visit ${index+1}`} ${column.label}`} rows={2} placeholder={column.placeholder||''} value={row[column.key]||''} onChange={event=>changeCell(row.id,column.key,event.target.value)}/>:<input aria-label={`${rowLabel==='G'?`G${index+1}`:`Event ${index+1}`} ${column.label}`} type={column.type||'text'} placeholder={column.placeholder||''} value={row[column.key]||''} onChange={event=>changeCell(row.id,column.key,event.target.value)}/>}</td>)}<td className="editable-log-action"><button type="button" aria-label={`Remove ${rowLabel==='G'?`pregnancy G${index+1}`:`event ${index+1}`}`} title="Remove row" onClick={()=>setPendingDelete(row)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-.8 13H6.8L6 7m4 3v7m4-7v7"/></svg></button></td></tr>)}</tbody></table></div></div>{pendingDelete&&<ConfirmationModal title="Remove this entry?" message="This entry will be removed from the history log." confirmLabel="Remove entry" onCancel={()=>setPendingDelete(null)} onConfirm={()=>{setRows(items=>items.filter(item=>item.id!==pendingDelete.id));setPendingDelete(null);}}/>}</>;
+  return <><div className={`editable-log editable-log-${kind}`}><div className="editable-log-header"><div><h3>{title}</h3>{description&&<p>{description}</p>}</div><button type="button" onClick={()=>setRows(items=>[...items,createRow()])}>＋ {addLabel}</button></div><div className="editable-log-scroll"><table><thead><tr><th>{rowLabel}</th>{columns.map(column=><th key={column.key}>{column.label}</th>)}<th>Action</th></tr></thead><tbody>{rows.map((row,index)=><tr key={row.id}><th scope="row">{rowLabel==='G'?`G${index+1}`:index+1}</th>{columns.map(column=><td key={column.key}>{column.render?column.render(row,index):column.options?<select aria-label={`${rowLabel==='G'?`G${index+1}`:`Event ${index+1}`} ${column.label}`} value={row[column.key]||''} onChange={event=>changeCell(row.id,column.key,event.target.value)}>{column.options.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>:column.multiline?<textarea aria-label={`${rowLabel==='G'?`G${index+1}`:`Visit ${index+1}`} ${column.label}`} rows={2} placeholder={column.placeholder||''} value={row[column.key]||''} onChange={event=>changeCell(row.id,column.key,event.target.value)}/>:column.type==='date'?<DateInput table ariaLabel={`${rowLabel==='G'?`G${index+1}`:`Visit ${index+1}`} ${column.label}`} value={row[column.key]||''} onChange={value=>changeCell(row.id,column.key,value)}/>:<input aria-label={`${rowLabel==='G'?`G${index+1}`:`Event ${index+1}`} ${column.label}`} type={column.type||'text'} placeholder={column.placeholder||''} value={row[column.key]||''} onChange={event=>changeCell(row.id,column.key,event.target.value)}/>}</td>)}<td className="editable-log-action"><button type="button" aria-label={`Remove ${rowLabel==='G'?`pregnancy G${index+1}`:`event ${index+1}`}`} title="Remove row" onClick={()=>setPendingDelete(row)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-.8 13H6.8L6 7m4 3v7m4-7v7"/></svg></button></td></tr>)}</tbody></table></div></div>{pendingDelete&&<ConfirmationModal title="Remove this entry?" message="This entry will be removed from the history log." confirmLabel="Remove entry" onCancel={()=>setPendingDelete(null)} onConfirm={()=>{setRows(items=>items.filter(item=>item.id!==pendingDelete.id));setPendingDelete(null);}}/>}</>;
 }
 
 export default function App() {
@@ -474,7 +492,7 @@ export default function App() {
     reserveSavedRowIds(draft);
     return draft;
   });
-  const [tab,setTab] = useState(()=>savedDraft.tab || 'ob');
+  const [tab,setTab] = useState(()=>savedDraft.tab === 'rx' && !SHOW_PRESCRIPTION_TAB ? 'ob' : savedDraft.tab || 'ob');
   const [ob,setOb] = useState(()=>({...blank(obFields),...(savedDraft.ob || {})}));
   const [obstetricHistory,setObstetricHistory] = useState(()=>savedDraft.obstetricHistory || [makePregnancy()]);
   const [prenatalVisits,setPrenatalVisits] = useState(()=>savedDraft.prenatalVisits || [makePrenatalVisit()]);
@@ -515,15 +533,19 @@ export default function App() {
   function updateRow(setRows,id,key,value) { setRows(rows=>rows.map(row=>row.id===id?{...row,[key]:value}:row)); setCopied(false); }
   async function copyOutput() {
     let copied=false;
+    const plainText=String(output).replace(/\r\n?/g,'\n');
     try {
-      if(navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(output);
+      if(navigator.clipboard?.write&&window.ClipboardItem) {
+        await navigator.clipboard.write([new ClipboardItem({'text/plain':new Blob([plainText],{type:'text/plain'})})]);
+        copied=true;
+      } else if(navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(plainText);
         copied=true;
       }
-    } catch { /* Use the selection-based fallback when clipboard access is unavailable. */ }
+    } catch { /* Use the selection-based plain-text fallback when clipboard access is unavailable. */ }
     if(!copied) {
       const area=document.createElement('textarea');
-      area.value=output;
+      area.value=plainText;
       area.setAttribute('readonly','');
       area.style.position='fixed';
       area.style.opacity='0';
@@ -562,7 +584,7 @@ export default function App() {
   return <div className="app">
     <header className="topbar"><div className="topbar-left"><a className="brand" href="#"><span className="brand-mark" aria-hidden="true"/><span>med tools</span></a><nav className="project-links" aria-label="Other projects"><a href="https://micahnut.github.io/friedmans-curve/" target="_blank" rel="noreferrer">Friedman Curve</a></nav></div></header>
     <main className="page">
-      <nav className="tabs" aria-label="Form type"><button className={tab==='ob'?'active':''} onClick={()=>{setTab('ob');setCopied(false)}}>OB-GYN <span>01</span></button><button className={tab==='pedia'?'active':''} onClick={()=>{setTab('pedia');setCopied(false)}}>PEDIA <span>02</span></button><button className={tab==='ent'?'active':''} onClick={()=>{setTab('ent');setCopied(false)}}>ENT <span>03</span></button><button className={tab==='rx'?'active':''} onClick={()=>{setTab('rx');setCopied(false)}}>PRESCRIPTION <span>04</span></button></nav>
+      <nav className="tabs" aria-label="Form type"><button className={tab==='ob'?'active':''} onClick={()=>{setTab('ob');setCopied(false)}}>OB-GYN <span>01</span></button><button className={tab==='pedia'?'active':''} onClick={()=>{setTab('pedia');setCopied(false)}}>PEDIA <span>02</span></button><button className={tab==='ent'?'active':''} onClick={()=>{setTab('ent');setCopied(false)}}>ENT <span>03</span></button>{SHOW_PRESCRIPTION_TAB&&<button className={tab==='rx'?'active':''} onClick={()=>{setTab('rx');setCopied(false)}}>PRESCRIPTION <span>04</span></button>}</nav>
       <div className={`workspace ${tab==='rx'?'workspace-rx':''} ${tab==='ob'?'workspace-ob':''} ${tab==='ob'&&ob.obFormat==='gynecology'?'workspace-ob-gynecology':''}`}>
         <div className="form-column">
           <div className="form-top"><div><span className="form-index">{tab==='ob'?'01':tab==='pedia'?'02':tab==='ent'?'03':'04'} / {tab==='rx'?'PRESCRIBE':'COMPOSE'}</span><h2>{tab==='ob'?'Obstetric update':tab==='pedia'?'Pediatric update':tab==='ent'?'ENT update':'Prescription pad'}</h2></div><div className="form-actions">{tab!=='rx'&&<button type="button" className="add-row" onClick={()=>setConfirmation({title:'Load sample data?',message:'This will replace the current form entries with sample data.',confirmLabel:'Load sample',action:loadSample})}>Load {tab==='ob'?(ob.obFormat==='newMom'?'New Mom':'OB'):tab==='pedia'?'Pedia':ent.entFormat==='trauma'?'Trauma':'ENT'} sample</button>}<button className="clear-button" onClick={()=>setConfirmation({title:'Clear this form?',message:'This will remove all entries from the current form. This cannot be undone.',confirmLabel:'Clear form',action:clearForm})}>Clear form</button></div></div>
@@ -575,9 +597,9 @@ export default function App() {
             </>:<>
             <Section title="Patient information"><div className="grid two">{[['name','NAME'],['age','AGE'],['mrn','MRN'],['obScore','OB SCORE'],['religion','RELIGION'],['status','STATUS'],['address','ADDRESS'],['occupation','OCCUPATION']].map(([key,label])=><Field key={key} label={label} value={ob[key]} onChange={v=>update(key,v)} options={key==='status'?[['','Select'],['Single','Single'],['Married','Married'],['Cohabiting','Cohabiting'],['Separated','Separated'],['Widowed','Widowed'],['Other','Other']]:null}/>)}</div></Section>
             <Section title="Chief complaint & present illness"><div className="grid two"><Field label="CC" value={ob.cc} onChange={v=>update('cc',v)} placeholder="e.g. Watery vaginal discharge"/><Field label="CC date & time" type="datetime-local" value={ob.ccDateTime} onChange={v=>update('ccDateTime',v)}/></div><Field label="HPI" multiline value={ob.hpi} onChange={v=>update('hpi',v)} placeholder="Describe onset, duration, associated symptoms, pertinent negatives, and reason for consult."/></Section>
-            <Section title="Menstrual history" description="The generated message keeps your M / I / D / A / A format."><div className="grid two"><Field label="M · menarche age" type="number" value={ob.menstrualM} onChange={v=>update('menstrualM',v)}/><Field label="I · cycle regularity" value={ob.menstrualI} onChange={v=>update('menstrualI',v)} options={ [['','Select'],['Regular','Regular'],['Irregular','Irregular']] }/><Field label="Cycle interval (days)" type="number" value={ob.menstrualIntervalDays} onChange={v=>update('menstrualIntervalDays',v)}/><Field label="D · duration (days)" type="number" value={ob.menstrualD} onChange={v=>update('menstrualD',v)}/><Field label="A · pads per day" type="number" value={ob.menstrualAmount} onChange={v=>update('menstrualAmount',v)}/><Field label="A · flow" value={ob.menstrualSoak} onChange={v=>update('menstrualSoak',v)} options={ [['','Select'],['Lightly soaked','Lightly soaked'],['Moderately soaked','Moderately soaked'],['Fully soaked','Fully soaked']] }/></div><div className="toggle-row"><Toggle label="Dysmenorrhea" checked={ob.mDysmenorrhea==='yes'} onChange={v=>update('mDysmenorrhea',v)}/><Field label="Associated symptoms / medication" value={ob.menstrualAssociated} onChange={v=>update('menstrualAssociated',v)}/></div></Section>
+            <Section title="Menstrual history" description="MIDAS: menarche, cycle regularity, duration, amount / flow, and symptoms."><div className="grid two"><Field label="M · menarche age" type="number" value={ob.menstrualM} onChange={v=>update('menstrualM',v)}/><Field label="I · cycle regularity" value={ob.menstrualI} onChange={v=>update('menstrualI',v)} options={ [['','Select'],['Regular','Regular'],['Irregular','Irregular']] }/><Field label="I · cycle interval (days)" type="number" value={ob.menstrualIntervalDays} onChange={v=>update('menstrualIntervalDays',v)}/><Field label="D · duration (days)" type="number" value={ob.menstrualD} onChange={v=>update('menstrualD',v)}/><label className="field menstrual-amount-field"><span>A · pads per day</span><input type="number" value={ob.menstrualAmount} onChange={e=>update('menstrualAmount',e.target.value)} aria-label="A · pads per day"/><small>Flow</small><select value={ob.menstrualSoak==='Lightly soaked'?'Light':(['Moderately soaked','Moderate, regular pad'].includes(ob.menstrualSoak)?'Moderate':ob.menstrualSoak==='Fully soaked'?'Heavy':ob.menstrualSoak)} onChange={e=>update('menstrualSoak',e.target.value)} aria-label="A · flow"><option value="">Select flow</option><option value="Light">Light</option><option value="Moderate">Moderate</option><option value="Heavy">Heavy</option></select></label></div><div className="toggle-row"><Toggle label="Dysmenorrhea" checked={ob.mDysmenorrhea==='yes'} onChange={v=>update('mDysmenorrhea',v)}/><Field label="S · symptoms" value={ob.menstrualAssociated} onChange={v=>update('menstrualAssociated',v)} placeholder="Other symptoms or medication"/></div></Section>
             <Section title="Sexual history" description="C = coitarche, P = partners / Pap smear, S = STI history."><div className="grid two"><Field label="C · age at coitarche" type="number" value={ob.sexualC1} onChange={v=>update('sexualC1',v)}/><Field label="P · number of partners" type="number" value={ob.sexualPartnersQty} onChange={v=>update('sexualPartnersQty',v)}/><Field label="Partner gender" value={ob.sexualPartnersGender} onChange={v=>update('sexualPartnersGender',v)} options={ [['','Select'],['Male','Male'],['Female','Female'],['Both','Both'],['Other','Other']] }/><Field label="C · contraception" value={ob.sexualC2} onChange={v=>update('sexualC2',v)} options={ [['','Select'],['None','None'],['Condom','Condom'],['OCP','OCP'],['IUD','IUD'],['Injectable','Injectable'],['Implant','Implant'],['Other','Other']] }/>{ob.sexualC2==='Other'&&<Field label="Other contraception" value={ob.sexualContraceptiveOther} onChange={v=>update('sexualContraceptiveOther',v)}/>}<Field label="P · Pap smear date" type="date" value={ob.sexualP2} onChange={v=>update('sexualP2',v)}/><Field label="Pap smear result" value={ob.sexualPapFinding} onChange={v=>update('sexualPapFinding',v)} options={ [['','Select'],['Not done','Not done'],['Normal','Normal'],['Abnormal','Abnormal'],['Pending','Pending']] }/><Field label="S · STI history" value={ob.sexualS} onChange={v=>update('sexualS',v)} options={ [['','Select'],['None','None'],['History','History'],['Unsure','Unsure']] }/>{ob.sexualS==='History'&&<Field label="STI details" value={ob.sexualStiDetails} onChange={v=>update('sexualStiDetails',v)}/>}</div></Section>
-            <Section title="Obstetric history"><div className="grid two">{[['gravidaCount','Gravida'],['parityCount','Parity'],['termCount','Term'],['pretermCount','Preterm'],['abortionCount','Abortion'],['liveBirthCount','Live birth']].map(([key,label])=><Field key={key} label={label} type="number" value={ob[key]} onChange={v=>update(key,v)}/>)}</div><div className="grid two"><Field label="OB score (optional, if you prefer to enter it directly)" value={ob.obs} onChange={v=>update('obs',v)} placeholder="e.g. G2P0 (0010)"/><Field label="LMP" type="date" value={ob.lmp} onChange={v=>update('lmp',v)}/><Field label="PMP" type="date" value={ob.pmp} onChange={v=>update('pmp',v)}/><div className="field"><span>EDD</span><div className="edd-display">{calculateEdd(ob.lmp)||'Enter LMP to calculate'}</div></div></div></Section>
+            <Section title="Obstetric history"><div className="grid two">{[['gravidaCount','Gravida'],['parityCount','Parity'],['termCount','Term'],['pretermCount','Preterm'],['abortionCount','Abortion'],['liveBirthCount','Live birth']].map(([key,label])=><Field key={key} label={label} type="number" value={ob[key]} onChange={v=>update(key,v)}/>)}</div><div className="grid two"><Field label="LMP" type="date" value={ob.lmp} onChange={v=>update('lmp',v)}/><Field label="PMP" type="date" value={ob.pmp} onChange={v=>update('pmp',v)}/><div className="field"><span>EDD</span><div className="edd-display">{calculateEdd(ob.lmp)||'Enter LMP to calculate'}</div></div></div></Section>
             <EditableLogTable title="Obstetric history logs" description="Add one row per pregnancy; the message numbers entries G1, G2, and so on." rows={obstetricHistory} setRows={setObstetricHistory} createRow={makePregnancy} columns={pregnancyLogColumns} rowLabel="G" addLabel="Add pregnancy" kind="pregnancies"/><Section title="Prenatal visit history" description="Add one entry for each visit or milestone, in chronological order."><div className="repeat-heading spaced"><span>Dating baseline</span><small>LMP-based AOG is calculated separately from the LMP entered in Obstetric history. Enter the AOG stated on the first UTZ; both calculations appear for each visit.</small></div><div className="grid two"><Field label="First UTZ date" type="date" value={ob.firstUtzDate} onChange={v=>update('firstUtzDate',v)}/><Field label="First UTZ AOG · weeks" type="number" value={ob.firstUtzAogWeeks} onChange={v=>update('firstUtzAogWeeks',v)}/><Field label="First UTZ AOG · days" type="number" value={ob.firstUtzAogDays} onChange={v=>update('firstUtzAogDays',v)}/></div><Toggle label="Use first UTZ AOG for dating (otherwise use LMP)" checked={ob.useUtzDating==='yes'} onChange={v=>update('useUtzDating',v)}/><EditableLogTable title="Prenatal history log" description="Add the visit date and details. Both LMP-based and UTZ-based AOG are calculated for each visit." rows={prenatalVisits} setRows={setPrenatalVisits} createRow={makePrenatalVisit} columns={[{key:'date',label:'Date of visit',type:'date'},{key:'aog',label:'Calculated AOG (LMP / UTZ)',render:row=><div className="prenatal-aog"><div><span>LMP:</span> {calculateLmpAog(ob.lmp,row.date)||'—'}</div><div><span>UTZ:</span> {calculateUtzAog(row.date,ob.firstUtzDate,ob.firstUtzAogWeeks,ob.firstUtzAogDays)||'—'}</div></div>},{key:'details',label:'Pertinent findings / labs / medications prescribed',multiline:true,placeholder:'Visit findings, labs, medications, and plan'}]} rowLabel="Visit" addLabel="Add prenatal visit" kind="prenatal"/></Section>
             <Section title="Past medical history"><small>Choose None alone, or select all applicable history.</small><CheckGroup options={pmhOptions} selected={ob.pmhSelections} onChange={v=>update('pmhSelections',v)} exclusive={['None']}/></Section><Section title="Previous admissions or surgeries"><small>Select each applicable history, then add one row per event.</small><CheckGroup options={procedureHistoryOptions} selected={obProcedureSelections} onChange={setObProcedureSelections}/>{obProcedureSelections.length>0&&<EditableLogTable title="Previous hospitalizations or surgeries" description="Add one row per admission or procedure." rows={procedureEvents} setRows={setProcedureEvents} createRow={makeProcedureEvent} columns={procedureLogColumns} rowLabel="Event" addLabel="Add hospitalization / surgery" kind="events"/>}</Section><Section title="Current medications"><Field label="Current Medications" multiline value={ob.medications} onChange={v=>update('medications',v)}/></Section><Section title="Personal & social history"><div className="repeat-heading"><span>Allergies</span><small>Choose one status; add details if present.</small></div><CheckGroup options={['No known allergies','Known allergy']} selected={ob.allergyFlags} onChange={v=>update('allergyFlags',v)} exclusive={['No known allergies','Known allergy']}/>{Array.isArray(ob.allergyFlags)&&ob.allergyFlags.includes('Known allergy')&&<Field label="Food and drug allergy details" value={ob.allergies} onChange={v=>update('allergies',v)} placeholder="List the allergy and reaction if known."/>}<div className="grid two"><Field label="Smoker" value={ob.smoking} onChange={v=>update('smoking',v)} options={ [['','Select'],['No','No'],['Yes','Yes']] }/><Field label="Alcoholic beverage drinker" value={ob.alcohol} onChange={v=>update('alcohol',v)} options={ [['','Select'],['No','No'],['Yes','Yes']] }/>{ob.alcohol==='Yes'&&<Field label="Alcohol details" value={ob.alcoholDetails} onChange={v=>update('alcoholDetails',v)} placeholder="e.g. Occasional; last intake January 2025"/>}<Field label="Illicit drug use" value={ob.illicitDrugUse} onChange={v=>update('illicitDrugUse',v)} options={ [['','Select'],['No','No'],['Yes','Yes']] }/></div></Section>
             <Section title="Immunizations"><CheckGroup options={['COVID','Influenza','Pneumococcal','Tetanus / TT','Tdap','Booster']} selected={ob.immunizationSelections} onChange={v=>update('immunizationSelections',v)}/><div className="grid two">{[['vaccineCovid','COVID details'],['vaccineFlu','Influenza details'],['vaccinePneumococcal','Pneumococcal details'],['vaccineTt','Tetanus / TT details'],['vaccineTdap','Tdap details'],['vaccineBooster','Booster details']].map(([key,label])=>Array.isArray(ob.immunizationSelections)&&ob.immunizationSelections.includes(label.replace(' details',''))?<Field key={key} label={label} value={ob[key]} onChange={v=>update(key,v)}/>:null)}</div></Section>
